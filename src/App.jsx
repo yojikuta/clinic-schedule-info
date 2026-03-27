@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Calendar, Settings, Plus, Trash2, Edit2, ChevronLeft, ChevronRight, 
   Copy, CheckCircle, AlertCircle, Users, RefreshCw, Link, X, Save,
-  CalendarDays, CalendarPlus, Clock, Code, Lock, Megaphone
+  CalendarDays, CalendarPlus, Clock, Code, Lock, Megaphone, DownloadCloud
 } from 'lucide-react';
 
 // --- 初期データ ---
@@ -57,8 +57,62 @@ export default function ClinicCalendarApp() {
   const [exceptions, setExceptions] = useState([]); // 臨時スケジュール
   const [announcement, setAnnouncement] = useState(''); // 次回配信お知らせ
   const [webhookUrl, setWebhookUrl] = useState('https://script.google.com/macros/s/AKfycbzYTqzyjTpLcYMDD65_iMAs_q-3aw2zhhBa3U2XjcYH7NOGwCAWQMswgGNjyRvUQITo/exec'); // スプレッドシート連携用URL
+  const [holidays, setHolidays] = useState({}); // 祝日データ
   
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isFetchingData, setIsFetchingData] = useState(false);
+
+  // 1. ローカルストレージからの復元（ブラウザを閉じても保存されるようにする）
+  useEffect(() => {
+    const savedData = localStorage.getItem('clinicCalendarData');
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.clinicSettings) setClinicSettings(parsed.clinicSettings);
+        if (parsed.doctors) setDoctors(parsed.doctors);
+        if (parsed.weeklySchedule) setWeeklySchedule(parsed.weeklySchedule);
+        if (parsed.exceptions) setExceptions(parsed.exceptions);
+        if (parsed.announcement !== undefined) setAnnouncement(parsed.announcement);
+        if (parsed.webhookUrl) setWebhookUrl(parsed.webhookUrl);
+        if (parsed.currentPassword) setCurrentPassword(parsed.currentPassword);
+      } catch (e) {
+        console.error("ローカルデータの読み込みに失敗しました", e);
+      }
+    }
+    setIsInitialLoad(false);
+  }, []);
+
+  // 2. 状態が変わるたびにローカルストレージに自動保存
+  useEffect(() => {
+    if (isInitialLoad) return;
+    const dataToSave = {
+      clinicSettings, doctors, weeklySchedule, exceptions, announcement, webhookUrl, currentPassword
+    };
+    localStorage.setItem('clinicCalendarData', JSON.stringify(dataToSave));
+  }, [clinicSettings, doctors, weeklySchedule, exceptions, announcement, webhookUrl, currentPassword, isInitialLoad]);
+
+  // スプレッドシート（GAS）から最新データを読み込む関数
+  const loadFromSpreadsheet = async () => {
+    if (!webhookUrl) return;
+    setIsFetchingData(true);
+    try {
+      const res = await fetch(webhookUrl);
+      const data = await res.json();
+      if (data && !data.error) {
+        if (data.clinicSettings) setClinicSettings(data.clinicSettings);
+        if (data.doctors) setDoctors(data.doctors);
+        if (data.weeklySchedule) setWeeklySchedule(data.weeklySchedule);
+        if (data.exceptions) setExceptions(data.exceptions);
+        if (data.announcement !== undefined) setAnnouncement(data.announcement);
+      }
+    } catch (err) {
+      console.error('スプレッドシートからのデータ取得に失敗しました', err);
+    } finally {
+      setIsFetchingData(false);
+    }
+  };
 
   // ブラウザのタブ（タイトルとアイコン）を動的に変更
   useEffect(() => {
@@ -73,6 +127,14 @@ export default function ClinicCalendarApp() {
     link.href = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📅</text></svg>';
   }, []);
 
+  // 祝日データの取得
+  useEffect(() => {
+    fetch('https://holidays-jp.github.io/api/v1/date.json')
+      .then(res => res.json())
+      .then(data => setHolidays(data))
+      .catch(err => console.error('祝日データの取得に失敗しました', err));
+  }, []);
+
   // モーダル管理（臨時予定追加・編集）
   const [tempModalConfig, setTempModalConfig] = useState(null);
 
@@ -82,6 +144,7 @@ export default function ClinicCalendarApp() {
     if (passwordInput === currentPassword) {
       setIsAuthenticated(true);
       setLoginError('');
+      loadFromSpreadsheet(); // ログイン成功時にスプレッドシートから最新データを取得
     } else {
       setLoginError('パスワードが間違っています。');
     }
@@ -204,10 +267,11 @@ export default function ClinicCalendarApp() {
         {activeTab === 'preview' && (
           <PreviewAndSyncPanel 
             weeklySchedule={weeklySchedule} exceptions={exceptions} doctors={doctors} clinicSettings={clinicSettings}
-            announcement={announcement}
+            announcement={announcement} holidays={holidays}
             currentDate={currentDate} setCurrentDate={setCurrentDate}
             webhookUrl={webhookUrl} setWebhookUrl={setWebhookUrl}
             onDateClick={(date, time) => setTempModalConfig({ initialDate: date, initialTime: time })}
+            onLoadFromSpreadsheet={loadFromSpreadsheet}
           />
         )}
         {activeTab === 'basic' && (
@@ -229,6 +293,16 @@ export default function ClinicCalendarApp() {
           exceptions={exceptions} setExceptions={setExceptions}
           doctors={doctors} onClose={() => setTempModalConfig(null)}
         />
+      )}
+
+      {/* データ読み込み中オーバーレイ */}
+      {isFetchingData && (
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex justify-center items-center z-50">
+          <div className="flex flex-col items-center gap-4 bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+            <RefreshCw className="w-10 h-10 text-blue-600 animate-spin" />
+            <p className="font-bold text-gray-700">最新データをスプレッドシートから読み込み中...</p>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -763,7 +837,7 @@ function DoctorsSection({ doctors, setDoctors, onDeleteDoctor }) {
 // ==========================================
 // 4. プレビュー・連携・埋め込みパネル
 // ==========================================
-function PreviewAndSyncPanel({ weeklySchedule, exceptions, doctors, clinicSettings, announcement, currentDate, setCurrentDate, webhookUrl, setWebhookUrl, onDateClick }) {
+function PreviewAndSyncPanel({ weeklySchedule, exceptions, doctors, clinicSettings, announcement, holidays, currentDate, setCurrentDate, webhookUrl, setWebhookUrl, onDateClick, onLoadFromSpreadsheet }) {
   const [copied, setCopied] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
@@ -791,6 +865,12 @@ function PreviewAndSyncPanel({ weeklySchedule, exceptions, doctors, clinicSettin
       am: { isOpen: weeklySchedule[dayOfWeek].am.isOpen, type: 'regular', docs: [...weeklySchedule[dayOfWeek].am.doctors] },
       pm: { isOpen: weeklySchedule[dayOfWeek].pm.isOpen, type: 'regular', docs: [...weeklySchedule[dayOfWeek].pm.doctors] }
     };
+
+    // 祝日判定 (デフォルトで終日休診とする)
+    if (holidays[dateStr]) {
+      status.am = { isOpen: false, type: 'holiday', docs: [], holidayName: holidays[dateStr] };
+      status.pm = { isOpen: false, type: 'holiday', docs: [], holidayName: holidays[dateStr] };
+    }
 
     const dayExceptions = exceptions.filter(ex => ex.date === dateStr);
     
@@ -834,6 +914,9 @@ function PreviewAndSyncPanel({ weeklySchedule, exceptions, doctors, clinicSettin
     if (!slotInfo.isOpen) {
       if (slotInfo.type === 'temp_closed') {
         return <div className="text-red-600 font-bold text-[10px] bg-red-100 px-1 py-0.5 rounded text-center">臨時休診</div>;
+      }
+      if (slotInfo.type === 'holiday') {
+        return <div className="text-red-500 font-bold text-[10px] bg-red-50 px-1 py-0.5 rounded text-center">祝日休診</div>;
       }
       return <div className="text-gray-400 text-center font-bold">ー</div>;
     }
@@ -956,16 +1039,18 @@ function PreviewAndSyncPanel({ weeklySchedule, exceptions, doctors, clinicSettin
               const dayOfWeek = new Date(year, month, day).getDay();
               const hasTemp = status.am.type.startsWith('temp') || status.pm.type.startsWith('temp');
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const isHoliday = !!holidays[dateStr];
               
               return (
                 <div 
                   key={day} 
-                  className={`p-1 border-b border-r min-h-[120px] flex flex-col transition-colors ${hasTemp ? 'bg-yellow-50/30' : ''}`}
+                  className={`p-1 border-b border-r min-h-[120px] flex flex-col transition-colors ${hasTemp ? 'bg-yellow-50/30' : isHoliday ? 'bg-red-50/20' : ''}`}
                 >
                   <div 
                     onClick={() => onDateClick(dateStr, 'ALL')}
-                    className={`text-right text-xs font-bold mb-1 px-1 cursor-pointer hover:bg-blue-100 hover:text-blue-800 rounded transition-colors ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : 'text-gray-700'}`}>
-                    {day}
+                    className={`flex justify-between items-center text-xs mb-1 px-1 cursor-pointer hover:bg-blue-100 hover:text-blue-800 rounded transition-colors ${dayOfWeek === 0 || isHoliday ? 'text-red-500 font-bold' : dayOfWeek === 6 ? 'text-blue-500 font-bold' : 'text-gray-700 font-bold'}`}>
+                    <span className="text-[9px] truncate max-w-[70%] text-red-400 font-normal">{isHoliday ? holidays[dateStr] : ''}</span>
+                    <span>{day}</span>
                   </div>
                   <div className="flex-grow flex flex-col gap-0.5">
                     <div 
@@ -1000,7 +1085,7 @@ function PreviewAndSyncPanel({ weeklySchedule, exceptions, doctors, clinicSettin
             <Link className="w-5 h-5 text-green-600" /> スプレッドシート同期
           </h2>
           <p className="text-xs text-gray-600 mb-4 leading-relaxed">
-            スケジュールをスプレッドシートに出力します。(GASのWebhook URLを指定)
+            スケジュールをスプレッドシートに出力（保存）、または最新データを読み込みます。
           </p>
           {syncError && (
             <div className="mb-3 flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded text-xs border border-red-200">
@@ -1009,10 +1094,16 @@ function PreviewAndSyncPanel({ weeklySchedule, exceptions, doctors, clinicSettin
           )}
           <div className="flex flex-col gap-3">
             <input type="url" placeholder="https://script.google.com/macros/s/..." value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-green-500 outline-none bg-white" />
-            <button onClick={handleSyncToSpreadsheet} disabled={isSyncing}
-              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all ${syncSuccess ? 'bg-green-600' : isSyncing ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'}`}>
-              {syncSuccess ? <><CheckCircle className="w-4 h-4"/> 完了！</> : isSyncing ? <><RefreshCw className="w-4 h-4 animate-spin"/> 送信中...</> : <><Save className="w-4 h-4"/> 同期する</>}
-            </button>
+            <div className="flex gap-2">
+              <button onClick={handleSyncToSpreadsheet} disabled={isSyncing}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-white text-sm font-medium transition-all ${syncSuccess ? 'bg-green-600' : isSyncing ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700 shadow-sm'}`}>
+                {syncSuccess ? <><CheckCircle className="w-4 h-4"/> 保存完了！</> : isSyncing ? <><RefreshCw className="w-4 h-4 animate-spin"/> 送信中...</> : <><Save className="w-4 h-4"/> シートへ保存</>}
+              </button>
+              <button onClick={onLoadFromSpreadsheet} disabled={isSyncing}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border border-green-600 text-green-700 bg-white rounded-lg text-sm font-medium hover:bg-green-50 transition-all shadow-sm">
+                <DownloadCloud className="w-4 h-4"/> シートから読込
+              </button>
+            </div>
           </div>
         </section>
 
