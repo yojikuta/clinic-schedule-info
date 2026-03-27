@@ -114,9 +114,15 @@ export default function ClinicCalendarApp() {
     }
   };
 
-  // ブラウザのタブ（タイトルとアイコン）を動的に変更
+  // ブラウザのタブ設定 ＆ ライトモードの強制
   useEffect(() => {
     document.title = "外来診療予定＆お知らせ管理";
+    
+    // OSのダークモード設定に影響されず、常にライトモードのデザインを強制する
+    document.documentElement.style.colorScheme = 'light';
+    document.body.style.backgroundColor = '#f9fafb'; // Tailwindの bg-gray-50 に相当
+    document.body.style.color = '#1f2937'; // Tailwindの text-gray-800 に相当
+
     // faviconをカレンダーの絵文字に変更
     let link = document.querySelector("link[rel~='icon']");
     if (!link) {
@@ -176,7 +182,7 @@ export default function ClinicCalendarApp() {
               type="password" 
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+              className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow bg-white"
               placeholder="パスワードを入力"
               autoFocus
             />
@@ -325,7 +331,7 @@ function AnnouncementPanel({ announcement, setAnnouncement }) {
           value={announcement}
           onChange={(e) => setAnnouncement(e.target.value)}
           placeholder="（例）〇日よりインフルエンザワクチンの予約を開始します。詳細については当院ホームページをご確認ください..."
-          className="w-full h-64 border border-gray-300 rounded-lg p-4 focus:ring-2 focus:ring-blue-500 outline-none resize-y"
+          className="w-full h-64 border border-gray-300 rounded-lg p-4 focus:ring-2 focus:ring-blue-500 outline-none resize-y bg-white"
         />
       </section>
     </div>
@@ -389,17 +395,17 @@ function BasicSchedulePanel({ clinicSettings, setClinicSettings, weeklySchedule,
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
             <h3 className="font-bold text-gray-700 mb-3">午前</h3>
             <div className="flex items-center gap-3">
-              <input type="time" name="amStart" value={clinicSettings.amStart} onChange={handleTimeChange} className="border rounded p-2 flex-1 focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input type="time" name="amStart" value={clinicSettings.amStart} onChange={handleTimeChange} className="border rounded p-2 flex-1 focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
               <span className="text-gray-500 font-bold">〜</span>
-              <input type="time" name="amEnd" value={clinicSettings.amEnd} onChange={handleTimeChange} className="border rounded p-2 flex-1 focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input type="time" name="amEnd" value={clinicSettings.amEnd} onChange={handleTimeChange} className="border rounded p-2 flex-1 focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
             </div>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
             <h3 className="font-bold text-gray-700 mb-3">午後</h3>
             <div className="flex items-center gap-3">
-              <input type="time" name="pmStart" value={clinicSettings.pmStart} onChange={handleTimeChange} className="border rounded p-2 flex-1 focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input type="time" name="pmStart" value={clinicSettings.pmStart} onChange={handleTimeChange} className="border rounded p-2 flex-1 focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
               <span className="text-gray-500 font-bold">〜</span>
-              <input type="time" name="pmEnd" value={clinicSettings.pmEnd} onChange={handleTimeChange} className="border rounded p-2 flex-1 focus:ring-2 focus:ring-blue-500 outline-none" />
+              <input type="time" name="pmEnd" value={clinicSettings.pmEnd} onChange={handleTimeChange} className="border rounded p-2 flex-1 focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
             </div>
           </div>
         </div>
@@ -484,11 +490,11 @@ function BasicSchedulePanel({ clinicSettings, setClinicSettings, weeklySchedule,
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
             <label className="block text-sm font-bold text-gray-700 mb-2">現在のパスワード</label>
-            <input type="password" value={pwdInput} onChange={e => setPwdInput(e.target.value)} className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+            <input type="password" value={pwdInput} onChange={e => setPwdInput(e.target.value)} className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
           </div>
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
             <label className="block text-sm font-bold text-gray-700 mb-2">新しいパスワード</label>
-            <input type="password" value={newPwdInput} onChange={e => setNewPwdInput(e.target.value)} className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+            <input type="password" value={newPwdInput} onChange={e => setNewPwdInput(e.target.value)} className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
           </div>
         </div>
         <div className="mt-4 flex justify-end">
@@ -650,7 +656,7 @@ function TempScheduleModal({ initialData, initialDate, initialTime, exceptions, 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">日にち</label>
               <input type="date" value={exFormData.date} onChange={e => setExFormData({...exFormData, date: e.target.value})}
-                className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+                className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">種類</label>
